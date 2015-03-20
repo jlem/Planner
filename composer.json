@@ -1,0 +1,12 @@
+{
+	"require": {
+		"klein/klein": "~2.1"
+	},
+	"autoload": {
+        "psr-4": {
+            "Planner\\": "app/Planner",
+            "Controllers\\": "app/Controllers",
+            "Illuminate\\": "vendor/laravel/framework/src/Illuminate"
+        } 
+	}
+}
