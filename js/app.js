@@ -2,6 +2,7 @@ const TAB_CHAR = ' ';
 
 $(function() {
     $('textarea').focus();
+    $('label').hide();
 
     $(document).delegate('textarea','keydown', function(e) {
         var textarea = $(this);
@@ -21,13 +22,26 @@ $(function() {
     });
 
     $(document).on('keyup', 'textarea', function() {
-        $.post('index.php/parse', 'notes=' + encodeURIComponent(getEditorData("#")), function(data) {
+        $.post('/parse', 'notes=' + encodeURIComponent(getEditorData("#")), function(data) {
             notes = JSON.parse(data);
             var notesContainer = $('#preview');
             var string = buildNotes(notes, 1);
             notesContainer.html(string);
         });
     });
+
+
+    $('input').click(function(e) {
+        e.preventDefault();
+        var self = $(this);
+        self.attr("disabled", true);
+        $.post('save', 'notes=' + encodeURIComponent(getEditorData("#")), function(data) {
+            self.attr("disabled", false);
+            $('label').fadeIn(function() {
+                $(this).delay(1000).fadeOut();
+            });
+        });
+    })
 });
 
 function buildNotes(notes, level, builder) {
