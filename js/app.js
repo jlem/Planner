@@ -1,18 +1,27 @@
-const TAB_STRING = '#';
+const TAB_CHAR = ' ';
 
-$(document).ready(function() {
+$(function() {
     $('textarea').focus();
 
     $(document).delegate('textarea','keydown', function(e) {
+        var textarea = $(this);
+        var text = textarea.val();
+        var lines = text.split(/\n/g);
+
+        var selection = null;
         if (e.which == 9) { // tab
-            handleIndent(e, this);
+            selection = handleIndent(e, this, lines);
         } else if (e.which == 13) { // return
-            handleReturn(e, this);
+            selection = handleReturn(e, this, lines);
         }
+
+        textarea.val(lines.join("\n"));
+        if (selection)
+            this.setSelectionRange(selection.start, selection.end);
     });
 
     $(document).on('keyup', 'textarea', function() {
-        $.post('/parse', $('form').serialize(), function(data) {
+        $.post('/parse', 'notes=' + encodeURIComponent(getEditorData("#")), function(data) {
             notes = JSON.parse(data);
             var notesContainer = $('#preview');
             var string = buildNotes(notes, 1);
@@ -21,100 +30,165 @@ $(document).ready(function() {
     });
 });
 
-function buildNotes(notes, level) {
-    var string = '<ul class="notes note-level-'+level+'">';
+function buildNotes(notes, level, builder) {
+    builder = builder || [];
+    builder.push('<ul class="notes note-level-', level, '">');
 
     notes.forEach(function(note) {
-        string = string + buildNote(note);
+        builder.push(buildNote(note));
         if (note.hasChildren) {
-            string = string + buildNotes(note.children, note.level + 1)
+            buildNotes(note.children, note.level + 1, builder)
         }
     });
 
-    string = string + '</ul>';
-    return string;
+    builder.push('</ul>');
+    if (level == 1)
+        return builder.join("");
 }
 
 function buildNote(note) {
     return '<li>'+note.text+'</li>';
 }
 
-function handleIndent(e, self) {
+function handleIndent(e, self, lines) {
     if (e.ctrlKey) // ignore when changing browser tabs
         return;
 
     e.preventDefault();
+    var c = getCursorInfo(self);
+    var start = c.start;
+    var end = c.end;
 
-    var textarea = $(self);
-    var text = textarea.val();
-    var lines = text.split(/\n/g);
+    var i = c.startLine;
+    var range = c.lineRange;
 
-    var start = self.selectionStart;
-    var end = self.selectionEnd;
-
-    //  get line number of cursor
-    var i = text.substr(0, start)
-        .split(/\n/g).length - 1;
-
-    //  get line number of selection end, if applicable
-    var range = (text.substr(0, end)
-        .split(/\n/g).length) - i;
-
-    var diff = 0;
+    var indent = 0, failed = 0;
     for (var j = 0; j < range; j++) {
-        var line = lines[i + j];
+        var lineAt = i + j;
+        var line = lines[lineAt];
 
         if (e.shiftKey) {   //  unindent if shift is pressed
-            if (line[0] == TAB_STRING) {
-                diff = -1;
+            if (line[0] == TAB_CHAR) {
                 lines[i + j] = line.substring(1);
+                indent--;
+            } else {
+                failed++;
             }
         } else {    //  otherwise indent
-            diff = 1
-            lines[i + j] = TAB_STRING + line;
+            indent++;
+            lines[i + j] = TAB_CHAR + line;
         }
     }
 
-    textarea.val(lines.join("\n"));
+    if (range > 0 && failed == range) return null;
 
-    if (range > 1) start = end;
-    self.setSelectionRange(start + diff * range, end + diff * range);
+    if (start != end) indent = Math.sign(indent);
+    return { start : start + Math.sign(indent), end : end + indent * range + failed};
 }
 
-function handleReturn(e, self) {
-
+function handleReturn(e, self, lines) {
     var textarea = $(self);
     var text = textarea.val();
-    var lines = text.split(/\n/g);
 
-    var start = self.selectionStart;
-    var end = self.selectionEnd;
+    var c = getCursorInfo(self);
 
-    //  get line number of cursor
-    var i = text.substr(0, start)
-        .split(/\n/g).length - 1;
-
-    //  get line number of selection end, if applicable
-    var range = (text.substr(0, end)
-        .split(/\n/g).length) - i;
-
-    if (start == end) { //  no selection
+    var diff = 0;
+    if (c.start == c.end) { //  no selection
+        var i = c.startLine;
         var line = lines[i];
-        if (line.startsWith(TAB_STRING)) {
+        if (line.startsWith(TAB_CHAR)) {
             e.preventDefault();
-            if (text.length >= start || text[start + 1] == "\n") {
-                var hashes = line.substr(0, line.lastIndexOf(TAB_STRING) + 1);
+            if (text.length >= c.start || text[c.start + 1] == "\n") {
+                var hashes = line.substr(0, getIndentCount(line));
 
                 if (hashes.length > 0 && line.length == hashes.length) {
                     lines[i] = hashes.substr(0, hashes.length - 1);
                 } else {
                     lines.splice(i + 1, 0, hashes);
                 }
+
+                diff = hashes.length + 1;
             }
         }
-    } else {    //  multi-char selection (maybe multiline!)
-        //  TODO
+    }
+    if (c.range > 1) c.start = end;
+    return { start : c.start + diff, end : c.end + diff };
+}
+
+function getEditorData(indentChar) {
+    var lines = $("textarea")
+        .val()
+        .split(/\n/g);
+
+    editorData.length = 0;
+
+    for (var i = 0; i < lines.length; i++) {
+        var index = getIndentCount(lines[i]);
+        var line = lines[i].substring(index);
+
+        editorData[i] = {
+            data : line,
+            indent : index
+        };
     }
 
-    textarea.val(lines.join("\n"));
+    var join = [];
+    for (var i = 0; i < editorData.length; i++) {
+        var data = editorData[i];
+        if (data.data == null || data.data.length == 0)
+            continue;
+
+        for (var r = 0; r < data.indent + 1; r++)
+            join.push(indentChar);
+
+        join.push(data.data);
+        if (i < editorData.length - 1)
+            join.push("\n");
+    }
+
+    return join.join("");
 }
+
+function getCursorInfo(textarea) {
+    var r = {
+        start : textarea.selectionStart,
+        end : textarea.selectionEnd,
+        startLine : null,
+        endLine : null,
+        startLineIndex : null,
+        endLineIndex : null
+    }
+
+    var text = $(textarea).val();
+    var startSub = text.substr(0, r.start);
+    var endSub = text.substr(0, r.end);
+    var startSplit = startSub.split(/\n/g);
+    var endSplit = endSub.split(/\n/g);
+
+    r.startLine = startSplit.length - 1;
+    r.lineRange = endSplit.length - r.startLine;
+
+    r.startLineIndex = r.start;
+    r.endLineIndex = r.end;
+
+    for (var i = 0; i < r.startLine; i++) {
+        r.startLineIndex -= startSplit[i].length + 1;
+    }
+
+    for (var j = 0; j < r.endLine; j++) {
+        r.endLineIndex -= endSplit[j].length + 1;
+    }
+
+    return r;
+}
+
+function getIndentCount(line) {
+    var i = 0;
+    for (i = 0; i < line.length; i++) {
+        if (line[i] != TAB_CHAR) return i;
+    }
+
+    return i;
+}
+
+var editorData = [];
