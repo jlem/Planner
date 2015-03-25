@@ -21,7 +21,7 @@ $(function() {
     });
 
     $(document).on('keyup', 'textarea', function() {
-        $.post('/parse', 'notes=' + encodeURIComponent(getEditorData("#")), function(data) {
+        $.post('index.php/parse', 'notes=' + encodeURIComponent(getEditorData("#")), function(data) {
             notes = JSON.parse(data);
             var notesContainer = $('#preview');
             var string = buildNotes(notes, 1);
@@ -58,7 +58,6 @@ function handleIndent(e, self, lines) {
     var c = getCursorInfo(self);
     var start = c.start;
     var end = c.end;
-
     var i = c.startLine;
     var range = c.lineRange;
 
@@ -82,6 +81,11 @@ function handleIndent(e, self, lines) {
 
     if (range > 0 && failed == range) return null;
 
+    if (c.startLineIndex == 0) {
+        start++;
+        end++;
+    }
+
     if (start != end) indent = Math.sign(indent);
     return { start : start + Math.sign(indent), end : end + indent * range + failed};
 }
@@ -91,14 +95,17 @@ function handleReturn(e, self, lines) {
     var text = textarea.val();
 
     var c = getCursorInfo(self);
+    var start = c.start;
+    var end = c.end;
+    var i = c.startLine;
+    var range = c.lineRange;
 
     var diff = 0;
-    if (c.start == c.end) { //  no selection
-        var i = c.startLine;
+    if (start == end) { //  no selection
         var line = lines[i];
         if (line.startsWith(TAB_CHAR)) {
             e.preventDefault();
-            if (text.length >= c.start || text[c.start + 1] == "\n") {
+            if (text.length >= start || text[start + 1] == "\n") {
                 var hashes = line.substr(0, getIndentCount(line));
 
                 if (hashes.length > 0 && line.length == hashes.length) {
@@ -111,8 +118,8 @@ function handleReturn(e, self, lines) {
             }
         }
     }
-    if (c.range > 1) c.start = end;
-    return { start : c.start + diff, end : c.end + diff };
+    if (range > 1) start = end;
+    return { start : start + diff, end : end + diff };
 }
 
 function getEditorData(indentChar) {
