@@ -1,0 +1,73 @@
+{
+    "auth": {
+        "required_components": [],
+        "suggested_components": [
+            "user_management"
+        ],
+        "suggested_features": {
+            "registration": {
+                "name": "Registration",
+                "requires": [
+                    "auth.permission_levels"
+                ],
+                "required_by": [],
+                "specifications": []
+            },
+            "login": {
+                "name": "User login",
+                "requires": [],
+                "required_by": [],
+                "specifications": []
+            },
+            "logout": {
+                "name": "Logout",
+                "requires": [],
+                "required_by": [],
+                "specifications": []
+            },
+            "password_recovery": {
+                "name": "Forgot/reset password",
+                "requires": [],
+                "required_by": [],
+                "specifications": [
+                    "Users can see form to send password recovery link to email",
+                    "Link brings them to new form to enter a new password",
+                    "Automatically log them in after resetting password"
+                ]
+            },
+            "password_change": {
+                "name": "Users can change their own password",
+                "requires": [],
+                "required_by": [],
+                "specifications": []
+            },
+            "permission_levels": {
+                "name": "Permission levels to differentiate access privileges",
+                "requires": [],
+                "required_by": [
+                    "auth.registration"
+                ],
+                "specifications": [
+                    "Admin",
+                    "Regular user"
+                ]
+            }
+        }
+    },
+
+    "user_management" : {
+        "required_components": [],
+        "suggested_components": [],
+        "suggested_features": {
+            "add_user": {
+                "name": "Administrator can add new users",
+                "requires": [],
+                "required_by": [],
+                "specifications": [
+                    "admin does not create a temporary password",
+                    "automatically email user with a secure link to enter their password"
+                ]
+            }
+        }
+    }
+}
